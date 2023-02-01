@@ -1,10 +1,8 @@
 import {
   combineLatest,
   concatMap,
-  debounceTime,
   filter,
   firstValueFrom,
-  from,
   map,
   merge,
   Observable,
@@ -26,8 +24,9 @@ const getDevices = (constraints?: MediaStreamConstraints) => {
         });
       })
       .catch((error) => {
-        console.error('Failed to get devices', error);
-        subscriber.error(error);
+        console.error('Failed to get devices with error:', error);
+        subscriber.next([]);
+        subscriber.complete();
       });
   });
 };
@@ -53,33 +52,30 @@ const videoDeviceConstraints: MediaStreamConstraints = {
 };
 
 // Audio and video devices are requested in two separate requests: that way users will be presented with two separate prompts -> they can give access to just camera, or just microphone
-const deviceChange$ = new Observable((subscriber) => {
-  const deviceChangeHandler = () => subscriber.next();
+const watchDeviceChange = (constraints: MediaStreamConstraints) =>
+  new Observable((subscriber) => {
+    const deviceChangeHandler = () => subscriber.next();
 
-  navigator.mediaDevices.addEventListener?.(
-    'devicechange',
-    deviceChangeHandler,
-  );
-
-  return () =>
-    navigator.mediaDevices.removeEventListener?.(
+    navigator.mediaDevices.addEventListener?.(
       'devicechange',
       deviceChangeHandler,
     );
-}).pipe(
-  debounceTime(500),
-  concatMap(() => from(navigator.mediaDevices.enumerateDevices())),
-  shareReplay(1),
-);
+
+    return () =>
+      navigator.mediaDevices.removeEventListener?.(
+        'devicechange',
+        deviceChangeHandler,
+      );
+  }).pipe(concatMap(() => getDevices(constraints)));
 
 const audioDevices$ = merge(
   getDevices(audioDeviceConstraints),
-  deviceChange$,
+  watchDeviceChange({ audio: true }),
 ).pipe(shareReplay(1));
 
 const videoDevices$ = merge(
   getDevices(videoDeviceConstraints),
-  deviceChange$,
+  watchDeviceChange({ video: true }),
 ).pipe(shareReplay(1));
 
 /**
@@ -122,15 +118,17 @@ const getStream = async (
   kind: Exclude<MediaDeviceKind, 'audiooutput'>,
   deviceId?: string,
 ) => {
+  // consider removing this part
+  // as it might use already stale list of devices
   if (!deviceId) {
     const allDevices = await firstValueFrom(
       kind === 'audioinput' ? getAudioDevices() : getVideoDevices(),
     );
-    if (allDevices.length === 0) {
+    if (!allDevices.length) {
       throw new Error(`No available ${kind} device found`);
     }
     // TODO: store last used device in local storage and use that value
-    const selectedDevice = allDevices[0];
+    const [selectedDevice] = allDevices;
     deviceId = selectedDevice.deviceId;
   }
   const type = kind === 'audioinput' ? 'audio' : 'video';
@@ -141,7 +139,7 @@ const getStream = async (
   const constraints: MediaStreamConstraints = {
     [type]: {
       ...(defaultConstraints[type] as {}),
-      deviceId,
+      ...(deviceId ? { deviceId } : {}),
     },
   };
 
