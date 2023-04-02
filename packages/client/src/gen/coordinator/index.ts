@@ -160,6 +160,12 @@ export interface BlockUserResponse {
 export interface BlockedUserEvent {
   /**
    *
+   * @type {UserResponse}
+   * @memberof BlockedUserEvent
+   */
+  blocked_by_user?: UserResponse;
+  /**
+   *
    * @type {string}
    * @memberof BlockedUserEvent
    */
@@ -177,11 +183,11 @@ export interface BlockedUserEvent {
    */
   type: string;
   /**
-   * The ID of the user that got blocked
-   * @type {string}
+   *
+   * @type {UserResponse}
    * @memberof BlockedUserEvent
    */
-  user_id: string;
+  user: UserResponse;
 }
 /**
  *
@@ -231,38 +237,6 @@ export interface CallAcceptedEvent {
    *
    * @type {UserResponse}
    * @memberof CallAcceptedEvent
-   */
-  user: UserResponse;
-}
-/**
- * This event is sent when the user initiating a call cancels it. Clients receiving this event
- * should dismiss the call screen and consider the call as cancelled by the caller
- * @export
- * @interface CallCancelledEvent
- */
-export interface CallCancelledEvent {
-  /**
-   *
-   * @type {string}
-   * @memberof CallCancelledEvent
-   */
-  call_cid: string;
-  /**
-   *
-   * @type {string}
-   * @memberof CallCancelledEvent
-   */
-  created_at: string;
-  /**
-   * The type of event: "call.cancelled" in this case
-   * @type {string}
-   * @memberof CallCancelledEvent
-   */
-  type: string;
-  /**
-   *
-   * @type {UserResponse}
-   * @memberof CallCancelledEvent
    */
   user: UserResponse;
 }
@@ -828,7 +802,8 @@ export interface CallTypeResponse {
   updated_at: string;
 }
 /**
- *
+ * This event is sent when a call is updated, clients should use this update the local state of the call.
+ * This event also contains the capabilities by role for the call, clients should update the own_capability for the current.
  * @export
  * @interface CallUpdatedEvent
  */
@@ -846,7 +821,7 @@ export interface CallUpdatedEvent {
    */
   call_cid: string;
   /**
-   *
+   * The capabilities by role for this call
    * @type {{ [key: string]: Array<string>; }}
    * @memberof CallUpdatedEvent
    */
@@ -858,7 +833,7 @@ export interface CallUpdatedEvent {
    */
   created_at: string;
   /**
-   *
+   * The type of event: "call.ended" in this case
    * @type {string}
    * @memberof CallUpdatedEvent
    */
@@ -1536,7 +1511,7 @@ export interface HLSSettings {
  */
 export interface HealthCheckEvent {
   /**
-   *
+   * The connection_id for this client
    * @type {string}
    * @memberof HealthCheckEvent
    */
@@ -1547,12 +1522,6 @@ export interface HealthCheckEvent {
    * @memberof HealthCheckEvent
    */
   created_at: string;
-  /**
-   *
-   * @type {OwnUserResponse}
-   * @memberof HealthCheckEvent
-   */
-  me?: OwnUserResponse;
   /**
    * The type of event: "health.check" in this case
    * @type {string}
@@ -2608,11 +2577,11 @@ export interface UnblockedUserEvent {
    */
   type: string;
   /**
-   * The ID of the user that was unblocked
-   * @type {string}
+   *
+   * @type {UserResponse}
    * @memberof UnblockedUserEvent
    */
-  user_id: string;
+  user: UserResponse;
 }
 /**
  *
@@ -2957,6 +2926,37 @@ export interface WSAuthMessageRequest {
   user_details: ConnectUserDetailsRequest;
 }
 /**
+ * This event is sent when the WS connection is established and authenticated, this event contains the full user object as it is stored on the server
+ * @export
+ * @interface WSConnectedEvent
+ */
+export interface WSConnectedEvent {
+  /**
+   * The connection_id for this client
+   * @type {string}
+   * @memberof WSConnectedEvent
+   */
+  connection_id: string;
+  /**
+   *
+   * @type {string}
+   * @memberof WSConnectedEvent
+   */
+  created_at: string;
+  /**
+   *
+   * @type {OwnUserResponse}
+   * @memberof WSConnectedEvent
+   */
+  me?: OwnUserResponse;
+  /**
+   * The type of event: "ws.connected" in this case
+   * @type {string}
+   * @memberof WSConnectedEvent
+   */
+  type: string;
+}
+/**
  * @type WSEvent
  * The discriminator object for all websocket events, you should use this to map event payloads to their own type
  * @export
@@ -2964,7 +2964,6 @@ export interface WSAuthMessageRequest {
 export type WSEvent =
   | ({ type: 'call.accepted' } & CallAcceptedEvent)
   | ({ type: 'call.blocked_user' } & BlockedUserEvent)
-  | ({ type: 'call.cancelled' } & CallCancelledEvent)
   | ({ type: 'call.created' } & CallCreatedEvent)
   | ({ type: 'call.ended' } & CallEndedEvent)
   | ({ type: 'call.permission_request' } & PermissionRequestEvent)
@@ -2976,4 +2975,5 @@ export type WSEvent =
   | ({ type: 'call.unblocked_user' } & UnblockedUserEvent)
   | ({ type: 'call.updated' } & CallUpdatedEvent)
   | ({ type: 'custom' } & CustomVideoEvent)
-  | ({ type: 'health.check' } & HealthCheckEvent);
+  | ({ type: 'health.check' } & HealthCheckEvent)
+  | ({ type: 'ws.connected' } & WSConnectedEvent);
