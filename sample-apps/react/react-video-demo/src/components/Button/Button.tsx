@@ -52,6 +52,7 @@ export const Button: FC<Props> = ({
           onClick={onClick}
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
+          type={type}
         >
           {children}
         </button>
@@ -66,6 +67,7 @@ export const Button: FC<Props> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       disabled={disabled}
+      type={type}
     >
       {children}
     </button>
