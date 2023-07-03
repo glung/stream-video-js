@@ -254,7 +254,7 @@ export class StreamSfuClient {
 
   send = (message: SfuRequest) => {
     return this.signalReady.then((signal) => {
-      this.logger(
+      logger(
         'debug',
         `Sending message to: ${this.edgeName}`,
         SfuRequest.toJson(message),
