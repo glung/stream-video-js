@@ -1,4 +1,4 @@
-import { LogLevel, Logger } from './coordinator/connection/types';
+import { Logger, LogLevel } from './coordinator/connection/types';
 
 let logger: Logger | undefined;
 
@@ -29,7 +29,7 @@ export const setLogger = (l: Logger) => {
 };
 
 export const getLogger = (withTags?: string[]) => {
-  const loggerMethod = logger || (() => {});
+  const loggerMethod = logger || logToConsole;
   const result: Logger = (
     logLevel: LogLevel,
     messeage: string,

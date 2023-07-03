@@ -24,12 +24,22 @@ export const KnownCodes = {
 /**
  * retryInterval - A retry interval which increases acc to number of failures
  *
+ * @param {number} numberOfFailures Number of failures / attempts.
+ * @param {number} minThreshold Minimum threshold to wait in milliseconds.
+ * @param {number} maxThreshold Maximum threshold to wait in milliseconds.
  * @return {number} Duration to wait in milliseconds
  */
-export function retryInterval(numberOfFailures: number) {
+export function retryInterval(
+  numberOfFailures: number,
+  minThreshold: number = 250,
+  maxThreshold: number = 5000,
+) {
   // try to reconnect in 0.25-5 seconds (random to spread out the load from failures)
-  const max = Math.min(500 + numberOfFailures * 2000, 5000);
-  const min = Math.min(Math.max(250, (numberOfFailures - 1) * 2000), 5000);
+  const max = Math.min(minThreshold + numberOfFailures * 2000, maxThreshold);
+  const min = Math.min(
+    Math.max(minThreshold, (numberOfFailures - 1) * 2000),
+    maxThreshold,
+  );
   return Math.floor(Math.random() * (max - min) + min);
 }
 

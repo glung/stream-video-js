@@ -1,5 +1,4 @@
 import type {
-  FinishedUnaryCall,
   MethodInfo,
   NextUnaryFn,
   RpcInterceptor,
@@ -7,7 +6,7 @@ import type {
   UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 import { SignalServerClient } from './gen/video/sfu/signal_rpc/signal.client';
-import { createSignalClient, withHeaders } from './rpc';
+import { createSignalClient, retryable, withHeaders } from './rpc';
 import {
   createWebSocketSignalChannel,
   Dispatcher,
@@ -20,16 +19,8 @@ import {
   TrackSubscriptionDetails,
   UpdateMuteStatesRequest,
 } from './gen/video/sfu/signal_rpc/signal';
-import {
-  Error as SfuError,
-  ICETrickle,
-  TrackType,
-} from './gen/video/sfu/models/models';
-import {
-  generateUUIDv4,
-  retryInterval,
-  sleep,
-} from './coordinator/connection/utils';
+import { ICETrickle, TrackType } from './gen/video/sfu/models/models';
+import { generateUUIDv4 } from './coordinator/connection/utils';
 import { Logger } from './coordinator/connection/types';
 import { getLogger } from './logger';
 
@@ -60,6 +51,8 @@ export type StreamSfuClientConstructor = {
    */
   sessionId?: string;
 };
+
+const logger: Logger = getLogger(['sfu-client']);
 
 /**
  * The client used for exchanging information with the SFU.
@@ -93,7 +86,6 @@ export class StreamSfuClient {
   private unhealthyTimeoutInMs = this.pingIntervalInMs + 5 * 1000;
   private lastMessageTimestamp?: Date;
   private readonly unsubscribeIceTrickle: () => void;
-  private readonly logger: Logger;
 
   /**
    * Constructs a new SFU client.
@@ -113,8 +105,6 @@ export class StreamSfuClient {
   }: StreamSfuClientConstructor) {
     this.sessionId = sessionId || generateUUIDv4();
     this.token = token;
-    this.logger = getLogger(['sfu-client']);
-    const logger = this.logger;
     const logInterceptor: RpcInterceptor = {
       interceptUnary(
         next: NextUnaryFn,
@@ -176,49 +166,35 @@ export class StreamSfuClient {
     clearTimeout(this.connectionCheckTimeout);
   };
 
-  updateSubscriptions = async (subscriptions: TrackSubscriptionDetails[]) => {
-    return retryable(
-      () =>
-        this.rpc.updateSubscriptions({
-          sessionId: this.sessionId,
-          tracks: subscriptions,
-        }),
-      this.logger,
-    );
-  };
+  updateSubscriptions = retryable(
+    async (subscriptions: TrackSubscriptionDetails[]) =>
+      this.rpc.updateSubscriptions({
+        sessionId: this.sessionId,
+        tracks: subscriptions,
+      }),
+  );
 
-  setPublisher = async (data: Omit<SetPublisherRequest, 'sessionId'>) => {
-    return retryable(
-      () =>
-        this.rpc.setPublisher({
-          ...data,
-          sessionId: this.sessionId,
-        }),
-      this.logger,
-    );
-  };
+  setPublisher = retryable(
+    async (data: Omit<SetPublisherRequest, 'sessionId'>) =>
+      this.rpc.setPublisher({
+        ...data,
+        sessionId: this.sessionId,
+      }),
+  );
 
-  sendAnswer = async (data: Omit<SendAnswerRequest, 'sessionId'>) => {
-    return retryable(
-      () =>
-        this.rpc.sendAnswer({
-          ...data,
-          sessionId: this.sessionId,
-        }),
-      this.logger,
-    );
-  };
+  sendAnswer = retryable(async (data: Omit<SendAnswerRequest, 'sessionId'>) =>
+    this.rpc.sendAnswer({
+      ...data,
+      sessionId: this.sessionId,
+    }),
+  );
 
-  iceTrickle = async (data: Omit<ICETrickle, 'sessionId'>) => {
-    return retryable(
-      () =>
-        this.rpc.iceTrickle({
-          ...data,
-          sessionId: this.sessionId,
-        }),
-      this.logger,
-    );
-  };
+  iceTrickle = retryable(async (data: Omit<ICETrickle, 'sessionId'>) =>
+    this.rpc.iceTrickle({
+      ...data,
+      sessionId: this.sessionId,
+    }),
+  );
 
   updateMuteState = async (trackType: TrackType, muted: boolean) => {
     return this.updateMuteStates({
@@ -231,18 +207,13 @@ export class StreamSfuClient {
     });
   };
 
-  updateMuteStates = async (
-    data: Omit<UpdateMuteStatesRequest, 'sessionId'>,
-  ) => {
-    return retryable(
-      () =>
-        this.rpc.updateMuteStates({
-          ...data,
-          sessionId: this.sessionId,
-        }),
-      this.logger,
-    );
-  };
+  updateMuteStates = retryable(
+    async (data: Omit<UpdateMuteStatesRequest, 'sessionId'>) =>
+      this.rpc.updateMuteStates({
+        ...data,
+        sessionId: this.sessionId,
+      }),
+  );
 
   join = async (data: Omit<JoinRequest, 'sessionId' | 'token'>) => {
     const joinRequest = JoinRequest.create({
@@ -271,7 +242,7 @@ export class StreamSfuClient {
       clearInterval(this.keepAliveInterval);
     }
     this.keepAliveInterval = setInterval(() => {
-      this.logger('info', 'Sending healthCheckRequest to SFU');
+      logger('info', 'Sending healthCheckRequest to SFU');
       const message = SfuRequest.create({
         requestPayload: {
           oneofKind: 'healthCheckRequest',
@@ -293,7 +264,7 @@ export class StreamSfuClient {
           new Date().getTime() - this.lastMessageTimestamp.getTime();
 
         if (timeSinceLastMessage > this.unhealthyTimeoutInMs) {
-          this.logger('error', 'SFU connection unhealthy, closing');
+          logger('error', 'SFU connection unhealthy, closing');
           this.close(
             4001,
             `SFU connection unhealthy. Didn't receive any healthcheck messages for ${this.unhealthyTimeoutInMs}ms`,
@@ -303,60 +274,3 @@ export class StreamSfuClient {
     }, this.unhealthyTimeoutInMs);
   };
 }
-
-/**
- * An internal interface which asserts that "retryable" SFU responses
- * contain a field called "error".
- * Ideally, this should be coming from the Protobuf definitions.
- */
-interface SfuResponseWithError {
-  /**
-   * An optional error field which should be present in all SFU responses.
-   */
-  error?: SfuError;
-}
-
-const MAX_RETRIES = 5;
-
-/**
- * Creates a closure which wraps the given RPC call and retries invoking
- * the RPC until it succeeds or the maximum number of retries is reached.
- *
- * Between each retry, there would be a random delay in order to avoid
- * request bursts towards the SFU.
- *
- * @param rpc the closure around the RPC call to execute.
- * @param <I> the type of the request object.
- * @param <O> the type of the response object.
- */
-const retryable = async <I extends object, O extends SfuResponseWithError>(
-  rpc: () => UnaryCall<I, O>,
-  logger: Logger,
-) => {
-  let retryAttempt = 0;
-  let rpcCallResult: FinishedUnaryCall<I, O>;
-  do {
-    // don't delay the first invocation
-    if (retryAttempt > 0) {
-      await sleep(retryInterval(retryAttempt));
-    }
-
-    rpcCallResult = await rpc();
-    logger(
-      'info',
-      `SFU RPC response received for ${rpcCallResult.method.name}`,
-    );
-    logger('debug', `Response payload`, rpcCallResult);
-
-    // if the RPC call failed, log the error and retry
-    if (rpcCallResult.response.error) {
-      logger('error', 'SFU RPC Error:', rpcCallResult.response.error);
-    }
-    retryAttempt++;
-  } while (
-    rpcCallResult.response.error?.shouldRetry &&
-    retryAttempt < MAX_RETRIES
-  );
-
-  return rpcCallResult;
-};
