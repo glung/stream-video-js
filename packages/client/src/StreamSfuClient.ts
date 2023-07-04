@@ -7,7 +7,13 @@ import type {
   UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 import { SignalServerClient } from './gen/video/sfu/signal_rpc/signal.client';
-import { createSignalClient, retryable, withHeaders } from './rpc';
+import {
+  createSignalClient,
+  fastAndSimpleRetryPolicy,
+  neverGonnaGiveYouUpRetryPolicy,
+  retryable,
+  withHeaders,
+} from './rpc';
 import {
   createWebSocketSignalChannel,
   Dispatcher,
@@ -188,34 +194,38 @@ export class StreamSfuClient {
   };
 
   updateSubscriptions = retryable(
-    async (subscriptions: TrackSubscriptionDetails[]) =>
-      this.rpc.updateSubscriptions({
+    async (subscriptions: TrackSubscriptionDetails[]) => {
+      return this.rpc.updateSubscriptions({
         sessionId: this.sessionId,
         tracks: subscriptions,
-      }),
+      });
+    },
+    neverGonnaGiveYouUpRetryPolicy,
   );
 
   setPublisher = retryable(
-    async (data: Omit<SetPublisherRequest, 'sessionId'>) =>
-      this.rpc.setPublisher({
+    async (data: Omit<SetPublisherRequest, 'sessionId'>) => {
+      return this.rpc.setPublisher({
         ...data,
         sessionId: this.sessionId,
-      }),
+      });
+    },
+    fastAndSimpleRetryPolicy,
   );
 
-  sendAnswer = retryable(async (data: Omit<SendAnswerRequest, 'sessionId'>) =>
-    this.rpc.sendAnswer({
+  sendAnswer = retryable(async (data: Omit<SendAnswerRequest, 'sessionId'>) => {
+    return this.rpc.sendAnswer({
       ...data,
       sessionId: this.sessionId,
-    }),
-  );
+    });
+  }, fastAndSimpleRetryPolicy);
 
-  iceTrickle = retryable(async (data: Omit<ICETrickle, 'sessionId'>) =>
-    this.rpc.iceTrickle({
+  iceTrickle = retryable(async (data: Omit<ICETrickle, 'sessionId'>) => {
+    return this.rpc.iceTrickle({
       ...data,
       sessionId: this.sessionId,
-    }),
-  );
+    });
+  }, fastAndSimpleRetryPolicy);
 
   updateMuteState = async (trackType: TrackType, muted: boolean) => {
     return this.updateMuteStates({
@@ -229,11 +239,13 @@ export class StreamSfuClient {
   };
 
   updateMuteStates = retryable(
-    async (data: Omit<UpdateMuteStatesRequest, 'sessionId'>) =>
-      this.rpc.updateMuteStates({
+    async (data: Omit<UpdateMuteStatesRequest, 'sessionId'>) => {
+      return this.rpc.updateMuteStates({
         ...data,
         sessionId: this.sessionId,
-      }),
+      });
+    },
+    neverGonnaGiveYouUpRetryPolicy,
   );
 
   join = async (data: Omit<JoinRequest, 'sessionId' | 'token'>) => {

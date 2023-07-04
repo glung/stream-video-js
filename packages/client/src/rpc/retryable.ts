@@ -36,6 +36,18 @@ export interface RetryPolicy {
   maxDelayInMs: number;
 }
 
+export const fastAndSimpleRetryPolicy: RetryPolicy = {
+  maxRetries: 3,
+  minDelayInMs: 250,
+  maxDelayInMs: 500,
+};
+
+export const neverGonnaGiveYouUpRetryPolicy: RetryPolicy = {
+  maxRetries: 30,
+  minDelayInMs: 500,
+  maxDelayInMs: 2500,
+};
+
 /**
  * The type definition of a retryable task.
  */
@@ -62,26 +74,21 @@ export const retryable = <
   O extends SfuResponseWithError, // the type of the response object.
 >(
   task: RetryableTask<T, R>,
-  retryPolicy: RetryPolicy = {
-    maxRetries: 5,
-    minDelayInMs: 250,
-    maxDelayInMs: 500,
-  },
+  retryPolicy: RetryPolicy,
 ): RetryableTask<T, R> => {
   return async function withRetryable(input: T) {
     let retryAttempt = 0;
     let result: R | undefined;
 
-    while (!result || result.response.error?.shouldRetry) {
+    do {
       // don't delay the first invocation
       if (retryAttempt > 0) {
-        await sleep(
-          retryInterval(
-            retryAttempt,
-            retryPolicy.minDelayInMs,
-            retryPolicy.maxDelayInMs,
-          ),
+        const delay = retryInterval(
+          retryAttempt,
+          retryPolicy.minDelayInMs,
+          retryPolicy.maxDelayInMs,
         );
+        await sleep(delay);
       }
 
       try {
@@ -93,13 +100,15 @@ export const retryable = <
         }
       } catch (e) {
         if (retryAttempt >= retryPolicy.maxRetries) {
+          logger('debug', 'SFU RPC error, not retrying...', e);
           throw e;
         }
         logger('debug', `SFU RPC error, retrying... ${retryAttempt}`, e);
       }
 
       retryAttempt++;
-    }
+    } while (!result || result.response.error?.shouldRetry);
+
     return result;
   };
 };
