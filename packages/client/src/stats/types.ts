@@ -1,4 +1,5 @@
 export type BaseStats = {
+  audioLevel?: number;
   bytesSent?: number;
   bytesReceived?: number;
   codec?: string;
@@ -20,6 +21,7 @@ export type StatsReport = {
 };
 
 export type AggregatedStatsReport = {
+  audioLevel?: number;
   totalBytesSent: number;
   totalBytesReceived: number;
   averageJitterInMs: number;

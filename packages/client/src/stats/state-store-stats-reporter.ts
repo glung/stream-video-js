@@ -166,6 +166,15 @@ export const createStatsReporter = ({
           }),
         )
         .then(aggregate),
+      publisher
+        .getStats()
+        .then((report) =>
+          transform(report, {
+            kind: 'publisher',
+            trackKind: 'audio',
+          }),
+        )
+        .then(aggregate),
     ]);
 
     const [subscriberRawStats, publisherRawStats] = await Promise.all([
@@ -233,12 +242,18 @@ const transform = (
   opts: StatsTransformOpts,
 ): StatsReport => {
   const { trackKind, kind } = opts;
-  const direction = kind === 'subscriber' ? 'inbound-rtp' : 'outbound-rtp';
+  const allowedSubscriberStatTypes = ['inbound-rtp'];
+  const allowedPublisherStatTypes = ['outbound-rtp', 'media-source'];
+  const direction =
+    kind === 'subscriber'
+      ? allowedSubscriberStatTypes
+      : allowedPublisherStatTypes;
   const stats = flatten(report);
+
   const streams = stats
     .filter(
       (stat) =>
-        stat.type === direction &&
+        direction.includes(stat.type) &&
         (stat as RTCRtpStreamStats).kind === trackKind,
     )
     .map((stat): BaseStats => {
@@ -264,6 +279,7 @@ const transform = (
       }
 
       return {
+        audioLevel: rtcStreamStats.audioLevel,
         bytesSent: rtcStreamStats.bytesSent,
         bytesReceived: rtcStreamStats.bytesReceived,
         codec: codec?.mimeType,
@@ -294,6 +310,7 @@ const transform = (
  */
 const aggregate = (stats: StatsReport): AggregatedStatsReport => {
   const aggregatedStats: AggregatedStatsReport = {
+    audioLevel: 0,
     rawReport: stats,
     totalBytesSent: 0,
     totalBytesReceived: 0,
@@ -316,6 +333,7 @@ const aggregate = (stats: StatsReport): AggregatedStatsReport => {
     acc.totalBytesReceived += stream.bytesReceived || 0;
     acc.averageJitterInMs += stream.jitter || 0;
     acc.averageRoundTripTimeInMs += stream.currentRoundTripTime || 0;
+    acc.audioLevel = stream.audioLevel;
 
     // naive calculation of the highest resolution
     const streamArea = area(stream.frameWidth || 0, stream.frameHeight || 0);
