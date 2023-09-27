@@ -1,4 +1,5 @@
-import { Observable, Subject, combineLatest } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 /**
  * A value or a function which takes the current value and returns a new value.
@@ -14,9 +15,10 @@ export type Patch<T> = T | ((currentValue: T) => T);
 export const getCurrentValue = <T>(observable$: Observable<T>) => {
   let value!: T;
   let err: Error | undefined = undefined;
-  combineLatest([observable$])
+  observable$
+    .pipe(take(1))
     .subscribe({
-      next: ([v]) => {
+      next: (v) => {
         value = v;
       },
       error: (e) => {

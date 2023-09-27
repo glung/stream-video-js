@@ -227,7 +227,7 @@ describe('DynascaleManager', () => {
 
       cleanup?.();
 
-      expect(updateSubscription).toHaveBeenLastCalledWith(
+      expect(updateSubscription).toHaveBeenCalledWith(
         'videoTrack',
         { 'session-id': { dimension: undefined } },
         DebounceType.FAST,
@@ -278,7 +278,7 @@ describe('DynascaleManager', () => {
 
       cleanup?.();
 
-      expect(updateSubscription).toHaveBeenLastCalledWith(
+      expect(updateSubscription).toHaveBeenCalledWith(
         'videoTrack',
         { 'session-id': { dimension: undefined } },
         DebounceType.FAST,
@@ -366,7 +366,7 @@ describe('DynascaleManager', () => {
 
       cleanup?.();
 
-      expect(updateSubscription).toHaveBeenLastCalledWith(
+      expect(updateSubscription).toHaveBeenCalledWith(
         'videoTrack',
         { 'session-id': { dimension: undefined } },
         DebounceType.FAST,
@@ -436,7 +436,7 @@ describe('DynascaleManager', () => {
 
       cleanup?.();
 
-      expect(updateSubscription).toHaveBeenLastCalledWith(
+      expect(updateSubscription).toHaveBeenCalledWith(
         'videoTrack',
         { 'session-id': { dimension: undefined } },
         DebounceType.FAST,
